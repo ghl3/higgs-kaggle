@@ -1,4 +1,6 @@
 
+import pandas
+
 from utils import load_training
 
 from features import add_features
@@ -9,7 +11,7 @@ def make_plots(df, output_file):
                                        autobin=True, alpha=0.5, normed=True)
 
 
-def make_feature_plots(df):
+def make_feature_plots(df_all_features):
 
     jet_partitioned = bamboo.data.partition(df_all_features, jet_partition)
 
@@ -33,7 +35,10 @@ def main():
     training = load_training()
     training_all_features = add_features(training)
 
-    training_all_features.head()
+    print training_all_features.head()
+    make_feature_plots(training_all_features)
+
+    #training_all_features.to_pickle("training_all_features.pkl")
 
 
 if __name__ =='__main__':

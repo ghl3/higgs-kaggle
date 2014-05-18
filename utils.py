@@ -1,5 +1,6 @@
 
-import bamboo.data
+import pandas 
+
 import bamboo.data
 
 
@@ -14,6 +15,12 @@ def jet_partition(row):
 
 
 def load_training(training_file='training.csv'):
+    df = pandas.read_csv(training_file)
+    df.set_index('EventId')
+    return df
+
+
+def load_testing(training_file='testing.csv'):
     df = pandas.read_csv(training_file)
     df.set_index('EventId')
     return df

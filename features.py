@@ -1,4 +1,8 @@
 
+import pandas
+
+import numpy as np
+
 import math
 import math
 from math import sin, cos, sinh
@@ -7,12 +11,10 @@ from bamboo.data import map_functions
 from bamboo.bamboo import threading
 
 
-
-
 # Momentum
 
 def px(pt, eta, phi):
-    return pt * np.cos(phi) 
+    return pt * np.cos(phi)
 
 def py(pt, eta, phi):
     return pt * np.sin(phi)
@@ -199,8 +201,6 @@ jet_features = [jet_delta_cos_phi]
 
 # Adding features to a DF
 
-def with_new_features(df):
-    return df.join(map_functions(df, new_features))
 
 
 def add_features(df):
@@ -212,6 +212,10 @@ def add_features(df):
     new_features.extend(met_features)
     new_features.extend(momentum_ratio_features)
 
+
+    def with_new_features(df):
+        return df.join(map_functions(df, new_features))
+
     df_all_features = threading(df,
                                 with_momentum_features,
                                 with_new_features)
@@ -221,8 +225,7 @@ def add_features(df):
 
 
 def main():
-
-    
+    pass
 
 
 
