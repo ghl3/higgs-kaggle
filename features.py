@@ -11,6 +11,16 @@ from bamboo.data import map_functions
 from bamboo.bamboo import threading
 
 
+
+def jet_partition(row):
+    jet_num = row['PRI_jet_num']
+    if jet_num==0:
+        return 'zero_jet'
+    elif jet_num==1:
+        return 'one_jet'
+    else:
+        return 'multi_jet'
+
 # Momentum
 
 def px(pt, eta, phi):

@@ -4,23 +4,13 @@ import pandas
 import bamboo.data
 
 
-def jet_partition(row):
-    jet_num = row['PRI_jet_num']
-    if jet_num==0:
-        return 'zero_jet'
-    elif jet_num==1:
-        return 'one_jet'
-    else:
-        return 'multi_jet'
-
-
 def load_training(training_file='training.csv'):
     df = pandas.read_csv(training_file)
     df.set_index('EventId')
     return df
 
 
-def load_testing(training_file='testing.csv'):
+def load_testing(training_file='test.csv'):
     df = pandas.read_csv(training_file)
     df.set_index('EventId')
     return df

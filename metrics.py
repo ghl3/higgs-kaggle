@@ -101,19 +101,3 @@ def plot_ams(prediction, truth_dict):
     plt.legend(loc="upper left")
 
 
-# All Evaluation Plots
-
-def prediction_plots(prediction):
-    fig = plt.figure(figsize=(16,8))
-
-    plt.subplot(2, 2, 1)
-    bamboo.modeling.print_roc_curve(prediction['Label'], prediction['predict_proba_1'])
-
-    plt.subplot(2, 2, 2)
-    bamboo.modeling.print_precision_recall_curve(prediction['Label'], prediction['predict_proba_1'])
-
-    plt.subplot(2, 2, 3)
-    plot_ams(prediction, truth_dict)
-
-    plt.subplot(2, 2, 4)
-    bamboo.plotting.hist(prediction.groupby('Label')['predict_proba_1'], autobin=True, alpha=0.5)
