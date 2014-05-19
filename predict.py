@@ -10,8 +10,12 @@ from plotting import prediction_plots
 
 from utils import get_features_and_targets
 from utils import target_to_label
+from utils import create_solution_dictionary
+
+import matplotlib.pyplot as plt
 
 import pandas
+import argparse
 
 
 def train(training_data):
@@ -24,18 +28,16 @@ def train(training_data):
 def predict(classifier, testing_data):
 
     features = testing_data
-
     print features.head().T
     prediction = bamboo.modeling.get_prediction(classifier,
                                                 features)
-
     return prediction
 
 
 def cross_validate(df):
 
     training_features, training_targets = get_features_and_targets(df[:150000])
-    testing_features, testing_tarets = get_features_and_targets(df[150000:])
+    testing_features, testing_targets = get_features_and_targets(df[150000:])
 
     rf = sklearn.ensemble.RandomForestClassifier(n_estimators=10, n_jobs=-1)
     fitted = rf.fit(training_features, training_targets)
@@ -44,9 +46,10 @@ def cross_validate(df):
                                                 testing_features,
                                                 testing_targets)
 
-    fig = prediction_plots(prediction)
 
-    savefig('cv.pdf', bbox_inches='tight')
+    truth_dict = create_solution_dictionary(df)
+    fig = prediction_plots(prediction, truth_dict)
+    plt.savefig('cv.pdf', bbox_inches='tight')
 
 
 def output_predictions(predictions, threshold, file_name='prediction.csv'):
@@ -64,13 +67,19 @@ def output_predictions(predictions, threshold, file_name='prediction.csv'):
 
 def main():
 
-    training = load_training()
-    classifier = train(training)
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('--cross_validate', action='store_true')
+    args = parser.parse_args()
 
-    testing = load_testing()
-    predictions = predict(classifier, testing)
+    if args.cross_validate:
+        data = load_training()
+        cross_validate(data)
 
-    output_predictions(predictions, threshold=0.7)
+    else:
+        classifier = train(training)
+        testing = load_testing()
+        predictions = predict(classifier, testing)
+        output_predictions(predictions, threshold=0.7)
 
 
 if __name__=='__main__':

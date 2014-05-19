@@ -1,6 +1,12 @@
 
 from collections import defaultdict
 
+import numpy as np
+import matplotlib.pyplot as plt
+
+import math
+
+from utils import target_to_label
 
 def score_summary(classifier, features, targets, scoring, **kwargs):
     print "Using %s features and %s rows\n" % (len(features.columns), len(features))
@@ -92,7 +98,7 @@ def ams_metric_threshold(submission, truth_dict, threshold=0.5, verbose=False, c
 
 def plot_ams(prediction, truth_dict):
     thresholds = np.arange(0, 1, .05)
-    metrics = [AMS_metric_threshold(prediction, truth_dict, threshold) for threshold in thresholds]
+    metrics = [ams_metric_threshold(prediction, truth_dict, threshold) for threshold in thresholds]
 
     max_ams = max(metrics)
     plt.plot(thresholds, metrics, label='AMS vs threshold (max = %0.2f)' % max_ams)

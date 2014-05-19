@@ -9,6 +9,8 @@ from features import jet_partition
 
 from metrics import *
 
+import matplotlib.pyplot as plt
+
 import bamboo
 
 
@@ -39,7 +41,7 @@ def make_feature_plots(df_all_features):
 
 # All Evaluation Plots
 
-def prediction_plots(prediction):
+def prediction_plots(prediction, truth_dict):
     fig = plt.figure(figsize=(16,8))
 
     plt.subplot(2, 2, 1)

@@ -29,6 +29,16 @@ def target_to_label(x):
         return 'b'
 
 
+def create_solution_dictionary(soln):
+    """ Read solution file, return a dictionary with key EventId and value (weight,label).
+    Solution file headers: EventId, Label, Weight """
+    
+    solnDict = {}
+    for index, row in soln.iterrows():
+        if row[0] not in solnDict:
+            solnDict[index] = (row['Label'], row['Weight'])
+    return solnDict
+
 def get_features_and_targets(df):
     targets, features = bamboo.data.take(df, 'Label', exclude=['EventId', 'Weight'])
     targets = targets.map(label_to_target)
