@@ -73,7 +73,10 @@ def main():
 
     print "Saving Classifier"
     output_dir = 'models/classifier_%s' % suffix
-    os.mkdir(output_dir)
+    try:
+        os.mkdir(output_dir)
+    except:
+        pass
     joblib.dump(classifier, '%s/%s.pkl' % (output_dir, classifier.__class__.__name__))
 
     print "Loading testing set"
