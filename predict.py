@@ -1,27 +1,25 @@
 #!/usr/bin/env python
 
-from utils import load_training, load_testing
-
-import sklearn.ensemble
+from utils import load_training, load_testing, get_model
+from utils import get_features_and_targets
+from utils import target_to_label
 
 import bamboo.modeling
 
-from plotting import prediction_plots
-
-from utils import get_features_and_targets
-from utils import target_to_label
-from utils import create_solution_dictionary
-
-import matplotlib.pyplot as plt
+from features import add_features
 
 import pandas
 import argparse
+import time
+import os
+
+from sklearn.externals import joblib
 
 
-def train(training_data):
+def train(training_data, model):
     training_features, training_targets = get_features_and_targets(training_data)
-    rf = sklearn.ensemble.RandomForestClassifier(n_estimators=10, n_jobs=-1)
-    fitted = rf.fit(training_features, training_targets)
+
+    fitted = model.fit(training_features, training_targets)
     return fitted
 
 
@@ -34,25 +32,7 @@ def predict(classifier, testing_data):
     return prediction
 
 
-def cross_validate(df):
-
-    training_features, training_targets = get_features_and_targets(df[:150000])
-    testing_features, testing_targets = get_features_and_targets(df[150000:])
-
-    rf = sklearn.ensemble.RandomForestClassifier(n_estimators=10, n_jobs=-1)
-    fitted = rf.fit(training_features, training_targets)
-
-    prediction = bamboo.modeling.get_prediction(fitted,
-                                                testing_features,
-                                                testing_targets)
-
-
-    truth_dict = create_solution_dictionary(df)
-    fig = prediction_plots(prediction, truth_dict)
-    plt.savefig('cv.pdf', bbox_inches='tight')
-
-
-def output_predictions(predictions, threshold, file_name='prediction.csv'):
+def output_predictions(predictions, threshold, filename):
 
     output = pandas.DataFrame({'EventId' : predictions.index,
                                'Score' : predictions.predict_proba_1})
@@ -61,25 +41,52 @@ def output_predictions(predictions, threshold, file_name='prediction.csv'):
     output = output.sort('Score', ascending=False)
     output = output.reset_index(drop=True)
     output['RankOrder'] = output.index
+    output['RankOrder'] = output['RankOrder'].map(lambda x: x+1)
 
-    output[['EventId', 'RankOrder', 'Class']].to_csv(file_name, index=False)
+    output[['EventId', 'RankOrder', 'Class']].to_csv(filename, index=False)
 
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('--cross_validate', action='store_true')
+    parser = argparse.ArgumentParser(description='Predict the testing set')
+    parser.add_argument('--model_type', default='RandomForest')
+    parser.add_argument('--test', action='store_true')
     args = parser.parse_args()
 
-    if args.cross_validate:
-        data = load_training()
-        cross_validate(data)
-
+    if args.test:
+        suffix = 'test'
     else:
-        classifier = train(training)
-        testing = load_testing()
-        predictions = predict(classifier, testing)
-        output_predictions(predictions, threshold=0.7)
+        suffix = time.strftime("%d/%m/%Y")
+
+    model = get_model(args.model_type, args.test)
+    print "Loaded Model: %s" % model
+
+    print "Loading Training Data"
+    training = load_training()
+
+    if not args.test:
+        print "Adding new features"
+        training = add_features(training)
+
+    print "Training Model"
+    classifier = train(training, model)
+
+    print "Saving Classifier"
+    output_dir = 'models/classifier_%s' % suffix
+    os.mkdir(output_dir)
+    joblib.dump(classifier, '%s/%s.pkl' % (output_dir, classifier.__class__.__name__))
+
+    print "Loading testing set"
+    testing = load_testing()
+
+    if not args.test:
+        print "Adding new features to testing set"
+        testing = add_features(testing)
+
+    print "Making predictions on testing set"
+    predictions = predict(classifier, testing)
+    output_predictions(predictions, threshold=0.7,
+                       filename='prediction_%s.csv' % suffix)
 
 
 if __name__=='__main__':
