@@ -23,14 +23,9 @@ def train(training_data):
 
 def predict(classifier, testing_data):
 
-    #testing_features, _ = get_features_and_targets(testing_data)
-
-    ids, features = bamboo.data.take(testing_data, 'EventId')
-
-    #features = testing_data
+    features = testing_data
 
     print features.head().T
-
     prediction = bamboo.modeling.get_prediction(classifier,
                                                 features)
 
@@ -54,6 +49,18 @@ def cross_validate(df):
     savefig('cv.pdf', bbox_inches='tight')
 
 
+def output_predictions(predictions, file_name='prediction.csv'):
+    output = pandas.DataFrame({'EventId' : predictions.index,
+                               'Class' : predictions.predict.map(target_to_label),
+                               'Score' : predictions.predict_proba_1})
+
+    output = output.sort('Score', ascending=False)
+    output = output.reset_index(drop=True)
+    output['RankOrder'] = output.index
+
+    output[['EventId', 'RankOrder', 'Class']].to_csv(file_name, index=False)
+
+
 def main():
 
     training = load_training()
@@ -62,10 +69,7 @@ def main():
     testing = load_testing()
     predictions = predict(classifier, testing)
 
-    output = pandas.DataFrame({'EventId' : testing.index,
-                               'Label' : predictions.predict.map(target_to_label)})
-
-    output.to_csv("prediction.csv")
+    output_predictions(predictions, testing)
 
 
 if __name__=='__main__':

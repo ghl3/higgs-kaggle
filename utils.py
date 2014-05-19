@@ -6,13 +6,13 @@ import bamboo.data
 
 def load_training(training_file='training.csv'):
     df = pandas.read_csv(training_file)
-    df.set_index('EventId')
+    df = df.set_index('EventId')
     return df
 
 
 def load_testing(training_file='test.csv'):
     df = pandas.read_csv(training_file)
-    df.set_index('EventId')
+    df = df.set_index('EventId')
     return df
 
 
