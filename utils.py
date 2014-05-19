@@ -1,6 +1,5 @@
 
-import pandas 
-
+import pandas
 import bamboo.data
 
 

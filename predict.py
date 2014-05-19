@@ -49,11 +49,12 @@ def cross_validate(df):
     savefig('cv.pdf', bbox_inches='tight')
 
 
-def output_predictions(predictions, file_name='prediction.csv'):
-    output = pandas.DataFrame({'EventId' : predictions.index,
-                               'Class' : predictions.predict.map(target_to_label),
-                               'Score' : predictions.predict_proba_1})
+def output_predictions(predictions, threshold, file_name='prediction.csv'):
 
+    output = pandas.DataFrame({'EventId' : predictions.index,
+                               'Score' : predictions.predict_proba_1})
+    output['Class'] = output['Score'].map(lambda x:
+                                          's' if x > threshold else 'b')
     output = output.sort('Score', ascending=False)
     output = output.reset_index(drop=True)
     output['RankOrder'] = output.index
@@ -69,7 +70,7 @@ def main():
     testing = load_testing()
     predictions = predict(classifier, testing)
 
-    output_predictions(predictions, testing)
+    output_predictions(predictions, threshold=0.7)
 
 
 if __name__=='__main__':
