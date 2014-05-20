@@ -56,7 +56,7 @@ def main():
     if args.test:
         suffix = 'test'
     else:
-        suffix = time.strftime("%d/%m/%Y")
+        suffix = time.strftime("%d_%m_%Y")
 
     model = get_model(args.model_type, args.test)
     print "Loaded Model: %s" % model
