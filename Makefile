@@ -25,4 +25,5 @@ image:
 
 
 notebook-server: image
-	docker run -t -i -p 8888:8888 -v $(PWD)/data:/home/ubuntu/data -v $(PWD)/notebooks:/home/ubuntu/notebooks higgs:latest
+#	docker run -t -i -p 8888:8888 -v $(PWD)/data:/home/ubuntu/data -v $(PWD)/notebooks:/home/ubuntu/notebooks higgs:latest
+	docker run -t -i -p 8888:8888 -v $(PWD):/home/ubuntu  higgs:latest

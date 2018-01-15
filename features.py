@@ -1,37 +1,31 @@
 
+from functools import wraps
+
 import pandas
 
 import numpy as np
 
-import math
-import math
-from math import sin, cos, sinh
+import pandas as pd
 
-from bamboo.data import map_functions
-from bamboo.bamboo import threading
+# Helpers
 
-
-
-def jet_partition(row):
-    jet_num = row['PRI_jet_num']
-    if jet_num==0:
-        return 'zero_jet'
-    elif jet_num==1:
-        return 'one_jet'
-    else:
-        return 'multi_jet'
-
-# Momentum
+#def jet_partition(df):
+#    jet_num = df['PRI_jet_num']
+#    if jet_num==0:
+#        return 'zero_jet'
+#    elif jet_num==1:
+#        return 'one_jet'
+#    else:
+#        return 'multi_jet'
 
 def px(pt, eta, phi):
-    return pt * np.cos(phi)
+    return np.where(pt >= 0, pt * np.cos(phi), -999)
 
 def py(pt, eta, phi):
-    return pt * np.sin(phi)
+    return np.where(pt >= 0, pt * np.sin(phi), -999)
 
 def pz(pt, eta, phi):
-    return pt * np.sinh(eta)
-
+    return np.where(pt >= 0, pt * np.sinh(eta), -999)
 
 def p_tot(pt, eta, phi):
     x = px(pt, eta, phi)
@@ -45,88 +39,141 @@ def _calculate_momenta(df, prefix):
     eta = df[prefix+'eta']
     phi = df[prefix+'phi']
 
-    return pandas.DataFrame({prefix+'px' : px(pt, eta, phi),
-                      prefix+'py' : py(pt, eta, phi),
-                      prefix+'pz' : pz(pt, eta, phi),
-                      prefix+'p_tot' : p_tot(pt, eta, phi)})
+    return pd.DataFrame({
+        prefix+'px': px(pt, eta, phi),
+        prefix+'py': py(pt, eta, phi),
+        prefix+'pz': pz(pt, eta, phi),
+        prefix+'p_tot': p_tot(pt, eta, phi)
+    })
 
 
-def get_momentum_features(df):
-    lep = _calculate_momenta(df, 'PRI_lep_')
-    jet_leading = _calculate_momenta(df, 'PRI_jet_leading_')
-    jet_subleading = _calculate_momenta(df, 'PRI_jet_subleading_')
-    tau = _calculate_momenta(df, 'PRI_tau_')
+def total_maximum(xs):
 
-    return lep.join(tau).join(jet_leading).join(jet_subleading)
+    m = None
+
+    for x in xs:
+        if m is None:
+            m = x
+        else:
+            m = np.maximum(m, x)
+    return m
+
+def total_minimum(xs):
+
+    m = None
+
+    for x in xs:
+        if m is None:
+            m = x
+        else:
+            m = np.minimum(m, x)
+    return m
 
 
-def with_momentum_features(df):
-    return df.join(get_momentum_features(df)).replace([np.inf, -np.inf], np.nan).fillna(0)
 
 
+def require_jets(njets):
+    def feature_decorator(func):
+        @wraps(func)
+        def func_wrapper(df):
+            return np.where(df.PRI_jet_num >= njets, func(df), -999)
+        return func_wrapper
+    return feature_decorator
 
-# Eta Features
 
 # The distance from the x=y line in jet eta0, eta1 space
 def eta_plus(x, y):
     return np.sqrt(x*x/2 + 2*y*y - 2*x*y)
 
-def jet_eta_plus(row):
-    x = row['PRI_jet_leading_eta']
-    y = row['PRI_jet_subleading_eta']
-    return eta_plus(x, y)
+
+# Create momentum variables
+
+def with_momentum_features(df):
+
+    df = df.copy()
+
+    lep = _calculate_momenta(df, 'PRI_lep_')
+    jet_leading = _calculate_momenta(df, 'PRI_jet_leading_')
+    jet_subleading = _calculate_momenta(df, 'PRI_jet_subleading_')
+    tau = _calculate_momenta(df, 'PRI_tau_')
+
+    for df_mom in [lep, jet_leading, jet_subleading, tau]:
+        for col, srs in df_mom.iteritems():
+           df[col] = srs
+
+    return df
+
+#
+# Start creating features
+#
+
+
+# Eta Features
+
+
+@require_jets(2)
+def jet_eta_plus(df):
+    x = df['PRI_jet_leading_eta']
+    y = df['PRI_jet_subleading_eta']
+    return np.where((x > -900) & (y > -900),
+                    eta_plus(x, y),
+                    -999)
 
 # Do the same with the lepton and jet
-def lep_tau_eta_plus(row):
-    x = row['PRI_lep_eta']
-    y = row['PRI_tau_eta']
-    return eta_plus(x, y)
+def lep_tau_eta_plus(df):
+    x = df['PRI_lep_eta']
+    y = df['PRI_tau_eta']
+    return np.where((x > -900) & (y > -900),
+                    eta_plus(x, y),
+                    -999)
 
 rapidity_features = [jet_eta_plus, lep_tau_eta_plus]
 
 
 # Z Momentum Features
 
-def lep_z_momentum(row):
-    return row['PRI_lep_pz'] + row['PRI_tau_pz']
+def lep_z_momentum(df):
+    return df['PRI_lep_pz'] + df['PRI_tau_pz']
 
-def jet_z_momentum(row):
-    return row['PRI_jet_leading_pz'] + row['PRI_jet_subleading_pz']
+def jet_z_momentum(df):
+    return np.where((df['PRI_jet_leading_pz'] > -900) & (df['PRI_jet_subleading_pz'] > -900),
+                    df['PRI_jet_leading_pz'] + df['PRI_jet_subleading_pz'],
+                    -999)
 
-def jet_lep_sum_z_momentum(row):
-    return lep_z_momentum(row) + jet_z_momentum(row)
+def jet_lep_sum_z_momentum(df):
+    return lep_z_momentum(df) + jet_z_momentum(df)
 
-def jet_lep_diff_z_momentum(row):
-    return lep_z_momentum(row) - jet_z_momentum(row)
+def jet_lep_diff_z_momentum(df):
+    return lep_z_momentum(df) - jet_z_momentum(df)
 
 z_momentum_features = [lep_z_momentum, jet_z_momentum, jet_lep_sum_z_momentum, jet_lep_diff_z_momentum]
 
 
 # Transverse Momenta Features
 
-def max_jet_pt(row):
-    return max(row['PRI_jet_leading_pt'], row['PRI_jet_subleading_pt'])  
+def max_jet_pt(df):
+    return np.maximum(df['PRI_jet_leading_pt'], df['PRI_jet_subleading_pt'])
 
-def min_jet_pt(row):
-    return min(row['PRI_jet_leading_pt'], row['PRI_jet_subleading_pt'])  
+def min_jet_pt(df):
+    return np.minimum(df['PRI_jet_leading_pt'], df['PRI_jet_subleading_pt'])
 
-def max_lep_pt(row):
-    return max(row['PRI_tau_pt'], row['PRI_lep_pt'])  
+def max_lep_pt(df):
+    return np.maximum(df['PRI_tau_pt'], df['PRI_lep_pt'])
 
-def min_lep_pt(row):
-    return min(row['PRI_tau_pt'], row['PRI_lep_pt'])  
+def min_lep_pt(df):
+    return np.minimum(df['PRI_tau_pt'], df['PRI_lep_pt'])
 
-def max_pt(row):
-    return max(max_jet_pt(row), max_lep_pt(row))
+def max_pt(df):
+    return np.maximum(max_jet_pt(df), max_lep_pt(df))
 
-def min_pt(row):
-    return min(min_jet_pt(row), min_lep_pt(row))
+def min_pt(df):
+    return np.minimum(min_jet_pt(df), min_lep_pt(df))
 
-def sum_jet_pt(row):
-    return row['PRI_jet_leading_pt'] + row['PRI_jet_subleading_pt']
+def sum_jet_pt(df):
+    return df['PRI_jet_leading_pt'] + df['PRI_jet_subleading_pt']
 
-def sum_lep_pt(row):
-    return row['PRI_tau_pt'] + row['PRI_lep_pt']
+def sum_lep_pt(df):
+    return df['PRI_tau_pt'] + df['PRI_lep_pt']
 
 
 transverse_momentum_features = [max_jet_pt, min_jet_pt, max_lep_pt, min_lep_pt,
@@ -135,67 +182,82 @@ transverse_momentum_features = [max_jet_pt, min_jet_pt, max_lep_pt, min_lep_pt,
 
 # Momentum Ratio Features
 
-def frac_tau_pt(row):
-    tau_pt = row['PRI_tau_pt']
-    lep_pt = row['PRI_lep_pt']
-    return tau_pt / (tau_pt + lep_pt)
+def frac_tau_pt(df):
+    tau_pt = df['PRI_tau_pt']
+    lep_pt = df['PRI_lep_pt']
+    pt_sum = (tau_pt + lep_pt)
+    return np.where(pt_sum > 0, tau_pt / pt_sum, -999)
 
-def frac_lep_pt(row):
-    tau_pt = row['PRI_tau_pt']
-    lep_pt = row['PRI_lep_pt']
-    return lep_pt / (tau_pt + lep_pt)
+def frac_lep_pt(df):
+    tau_pt = df['PRI_tau_pt']
+    lep_pt = df['PRI_lep_pt']
+    pt_sum = (tau_pt + lep_pt)
+    return np.where(pt_sum > 0, lep_pt / pt_sum, -999)
 
-def frac_tau_p(row):
-    tau_p = row['PRI_tau_p_tot']
-    lep_p = row['PRI_lep_p_tot']
-    return tau_p / (tau_p + lep_p)
+def frac_tau_p(df):
+    tau_p = df['PRI_tau_p_tot']
+    lep_p = df['PRI_lep_p_tot']
+    p_sum = (tau_p + lep_p)
+    return np.where(p_sum > 0, tau_p / p_sum, -999)
 
-def frac_lep_p(row):
-    tau_p = row['PRI_tau_p_tot']
-    lep_p = row['PRI_lep_p_tot']
-    return lep_p / (tau_p + lep_p)
+def frac_lep_p(df):
+    tau_p = df['PRI_tau_p_tot']
+    lep_p = df['PRI_lep_p_tot']
+    p_sum = (tau_p + lep_p)
+    return np.where(p_sum != 0, lep_p / p_sum, -999)
 
 momentum_ratio_features = [frac_tau_pt, frac_lep_pt, frac_tau_p, frac_lep_p]
 
 
 # MET Features
 
-def ht(row):
-    return sum_jet_pt(row) + sum_lep_pt(row)
+def ht(df):
+    return sum_jet_pt(df) + sum_lep_pt(df)
 
-def ht_met(row):
-    return ht(row) + row['PRI_met']
+def ht_met(df):
+    return ht(df) + df['PRI_met']
 
-def tau_met_cos_phi(row):
-    return math.cos(row['PRI_met_phi'] - row['PRI_tau_phi'])
+def tau_met_cos_phi(df):
+    return np.cos(df['PRI_met_phi'] - df['PRI_tau_phi'])
 
-def lep_met_cos_phi(row):
-    return math.cos(row['PRI_met_phi'] - row['PRI_lep_phi'])
+def lep_met_cos_phi(df):
+    return np.cos(df['PRI_met_phi'] - df['PRI_lep_phi'])
 
-def jet_leading_met_cos_phi(row):
-    return math.cos(row['PRI_jet_leading_phi'] - row['PRI_lep_phi'])
+def jet_leading_met_cos_phi(df):
+    return np.cos(df['PRI_jet_leading_phi'] - df['PRI_lep_phi'])
 
-def jet_subleading_met_cos_phi(row):
-    return math.cos(row['PRI_jet_subleading_phi'] - row['PRI_lep_phi'])
+def jet_subleading_met_cos_phi(df):
+    return np.cos(df['PRI_jet_subleading_phi'] - df['PRI_lep_phi'])
 
-def min_met_cos_phi(row):
-    return min(tau_met_cos_phi(row), lep_met_cos_phi(row),
-               jet_leading_met_cos_phi(row), jet_subleading_met_cos_phi(row))
+def min_met_cos_phi(df):
+    return total_minimum([
+        tau_met_cos_phi(df),
+        lep_met_cos_phi(df),
+        jet_leading_met_cos_phi(df),
+        jet_subleading_met_cos_phi(df)])
 
-def max_met_cos_phi(row):
-    return max(tau_met_cos_phi(row), lep_met_cos_phi(row),
-               jet_leading_met_cos_phi(row), jet_subleading_met_cos_phi(row))
+def max_met_cos_phi(df):
+    return total_maximum([
+        tau_met_cos_phi(df),
+        lep_met_cos_phi(df),
+        jet_leading_met_cos_phi(df),
+        jet_subleading_met_cos_phi(df)])
 
-def met_sig(row):
-    return row['PRI_met'] / np.sqrt(row['PRI_met_sumet'])
+def met_sig(df):
+    return np.where(df['PRI_met_sumet'] > 0,
+                    df['PRI_met'] / np.sqrt(df['PRI_met_sumet']),
+                    -999)
 
-def sumet_sum_pt_ratio(row):
-    return row['PRI_met_sumet'] / row['DER_sum_pt']
+def sumet_sum_pt_ratio(df):
+    return np.where(df['DER_sum_pt'] != 0,
+                    df['PRI_met_sumet'] / df['DER_sum_pt'],
+                    -999)
 
-def met_pt_total_ratio(row):
-    if (row['DER_pt_tot']==0):
-        return 0.0
-    return row['PRI_met'] / row['DER_pt_tot']
+def met_pt_total_ratio(df):
+    return np.where(df['DER_pt_tot']==0, -999, df['PRI_met'] / df['DER_pt_tot'])
+#    if (df['DER_pt_tot']==0):
+#        return 0.0
+#    return df['PRI_met'] / df['DER_pt_tot']
 
 met_features = [ht, ht_met, tau_met_cos_phi, lep_met_cos_phi, jet_leading_met_cos_phi, jet_subleading_met_cos_phi,
                 min_met_cos_phi, max_met_cos_phi, met_sig, sumet_sum_pt_ratio, met_pt_total_ratio]
@@ -203,17 +265,26 @@ met_features = [ht, ht_met, tau_met_cos_phi, lep_met_cos_phi, jet_leading_met_co
 
 # Jet Features
 
-def jet_delta_cos_phi(row):
-    return cos(row['PRI_jet_leading_phi'] - row['PRI_jet_subleading_phi'])
+def jet_delta_cos_phi(df):
+    return np.cos(df['PRI_jet_leading_phi'] - df['PRI_jet_subleading_phi'])
 
 jet_features = [jet_delta_cos_phi]
 
 
 # Adding features to a DF
 
+def with_added_features(df):
 
+    df = df.copy()
 
-def add_features(df):
+    for col, srs in df.iteritems():
+        print "Cleaning {}".format(col)
+        #srs[(~np.isfinite(srs)) & srs.notnull()] = -999
+
+        df[col] = srs.replace([np.inf, -np.inf, np.float64('inf'), np.float64('-inf')], np.nan).fillna(-999)
+
+    print "Adding momentum features"
+    df = with_momentum_features(df)
 
     new_features = []
     new_features.extend(rapidity_features)
@@ -222,23 +293,18 @@ def add_features(df):
     new_features.extend(met_features)
     new_features.extend(momentum_ratio_features)
 
+    for f in new_features:
+        name = f.__name__
+        print "Calculating {}".format(name)
+        df[name] = pd.Series(f(df), index=df.index).replace([np.inf, -np.inf], np.nan).fillna(-999)
 
-    def with_new_features(df):
-        return df.join(map_functions(df, new_features))
+    #def with_new_features(df):
+    #    return df.join(map_functions(df, new_features))
 
-    df_all_features = threading(df,
-                                with_momentum_features,
-                                with_new_features)
+    #df = df
+    #df = with_momentum_features(df)
+    #df = with_new_features(df)
 
-    return df_all_features
+    return df
 
-
-
-def main():
-    pass
-
-
-
-if __name__=='__main__':
-    main()
 
