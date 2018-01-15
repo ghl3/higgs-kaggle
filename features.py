@@ -9,15 +9,6 @@ import pandas as pd
 
 # Helpers
 
-#def jet_partition(df):
-#    jet_num = df['PRI_jet_num']
-#    if jet_num==0:
-#        return 'zero_jet'
-#    elif jet_num==1:
-#        return 'one_jet'
-#    else:
-#        return 'multi_jet'
-
 def px(pt, eta, phi):
     return np.where(pt >= 0, pt * np.cos(phi), -999)
 
@@ -33,7 +24,6 @@ def p_tot(pt, eta, phi):
     z = pz(pt, eta, phi)
     return np.sqrt(x*x + y*y + z*z)
 
-
 def _calculate_momenta(df, prefix):
     pt = df[prefix+'pt']
     eta = df[prefix+'eta']
@@ -48,9 +38,7 @@ def _calculate_momenta(df, prefix):
 
 
 def total_maximum(xs):
-
     m = None
-
     for x in xs:
         if m is None:
             m = x
@@ -58,10 +46,9 @@ def total_maximum(xs):
             m = np.maximum(m, x)
     return m
 
+
 def total_minimum(xs):
-
     m = None
-
     for x in xs:
         if m is None:
             m = x
@@ -70,13 +57,11 @@ def total_minimum(xs):
     return m
 
 
-
-
-def require_jets(njets):
+def require_jets(njets, default=-999):
     def feature_decorator(func):
         @wraps(func)
         def func_wrapper(df):
-            return np.where(df.PRI_jet_num >= njets, func(df), -999)
+            return np.where(df.PRI_jet_num >= njets, func(df), default)
         return func_wrapper
     return feature_decorator
 
@@ -110,7 +95,6 @@ def with_momentum_features(df):
 
 # Eta Features
 
-
 @require_jets(2)
 def jet_eta_plus(df):
     x = df['PRI_jet_leading_eta']
@@ -123,9 +107,7 @@ def jet_eta_plus(df):
 def lep_tau_eta_plus(df):
     x = df['PRI_lep_eta']
     y = df['PRI_tau_eta']
-    return np.where((x > -900) & (y > -900),
-                    eta_plus(x, y),
-                    -999)
+    return eta_plus(x, y)
 
 rapidity_features = [jet_eta_plus, lep_tau_eta_plus]
 
@@ -135,14 +117,15 @@ rapidity_features = [jet_eta_plus, lep_tau_eta_plus]
 def lep_z_momentum(df):
     return df['PRI_lep_pz'] + df['PRI_tau_pz']
 
+@require_jets(2)
 def jet_z_momentum(df):
-    return np.where((df['PRI_jet_leading_pz'] > -900) & (df['PRI_jet_subleading_pz'] > -900),
-                    df['PRI_jet_leading_pz'] + df['PRI_jet_subleading_pz'],
-                    -999)
+    return df['PRI_jet_leading_pz'] + df['PRI_jet_subleading_pz']
 
+@require_jets(2)
 def jet_lep_sum_z_momentum(df):
     return lep_z_momentum(df) + jet_z_momentum(df)
 
+@require_jets(2)
 def jet_lep_diff_z_momentum(df):
     return lep_z_momentum(df) - jet_z_momentum(df)
 
@@ -150,12 +133,15 @@ z_momentum_features = [lep_z_momentum, jet_z_momentum, jet_lep_sum_z_momentum, j
 
 
 # Transverse Momenta Features
-
 def max_jet_pt(df):
-    return np.maximum(df['PRI_jet_leading_pt'], df['PRI_jet_subleading_pt'])
+    return np.maximum(
+        np.where(df['PRI_jet_leading_pt'] > 0, df['PRI_jet_leading_pt'], 0),
+        np.where(df['PRI_jet_subleading_pt'] > 0, df['PRI_jet_subleading_pt'], 0))
 
 def min_jet_pt(df):
-    return np.minimum(df['PRI_jet_leading_pt'], df['PRI_jet_subleading_pt'])
+    return np.minimum(
+        np.where(df['PRI_jet_leading_pt'] > 0, df['PRI_jet_leading_pt'], 0),
+        np.where(df['PRI_jet_subleading_pt'] > 0, df['PRI_jet_subleading_pt'], 0))
 
 def max_lep_pt(df):
     return np.maximum(df['PRI_tau_pt'], df['PRI_lep_pt'])
@@ -170,7 +156,7 @@ def min_pt(df):
     return np.minimum(min_jet_pt(df), min_lep_pt(df))
 
 def sum_jet_pt(df):
-    return df['PRI_jet_leading_pt'] + df['PRI_jet_subleading_pt']
+    return np.where(df['PRI_jet_leading_pt'] > 0, df['PRI_jet_leading_pt'], 0) + np.where(df['PRI_jet_subleading_pt']>0, df['PRI_jet_subleading_pt'], 0)
 
 def sum_lep_pt(df):
     return df['PRI_tau_pt'] + df['PRI_lep_pt']
@@ -223,12 +209,15 @@ def tau_met_cos_phi(df):
 def lep_met_cos_phi(df):
     return np.cos(df['PRI_met_phi'] - df['PRI_lep_phi'])
 
+@require_jets(1)
 def jet_leading_met_cos_phi(df):
     return np.cos(df['PRI_jet_leading_phi'] - df['PRI_lep_phi'])
 
+@require_jets(2)
 def jet_subleading_met_cos_phi(df):
     return np.cos(df['PRI_jet_subleading_phi'] - df['PRI_lep_phi'])
 
+@require_jets(2)
 def min_met_cos_phi(df):
     return total_minimum([
         tau_met_cos_phi(df),
@@ -236,6 +225,7 @@ def min_met_cos_phi(df):
         jet_leading_met_cos_phi(df),
         jet_subleading_met_cos_phi(df)])
 
+@require_jets(2)
 def max_met_cos_phi(df):
     return total_maximum([
         tau_met_cos_phi(df),
@@ -255,16 +245,13 @@ def sumet_sum_pt_ratio(df):
 
 def met_pt_total_ratio(df):
     return np.where(df['DER_pt_tot']==0, -999, df['PRI_met'] / df['DER_pt_tot'])
-#    if (df['DER_pt_tot']==0):
-#        return 0.0
-#    return df['PRI_met'] / df['DER_pt_tot']
 
 met_features = [ht, ht_met, tau_met_cos_phi, lep_met_cos_phi, jet_leading_met_cos_phi, jet_subleading_met_cos_phi,
                 min_met_cos_phi, max_met_cos_phi, met_sig, sumet_sum_pt_ratio, met_pt_total_ratio]
 
 
 # Jet Features
-
+@require_jets(2)
 def jet_delta_cos_phi(df):
     return np.cos(df['PRI_jet_leading_phi'] - df['PRI_jet_subleading_phi'])
 
@@ -276,12 +263,6 @@ jet_features = [jet_delta_cos_phi]
 def with_added_features(df):
 
     df = df.copy()
-
-    for col, srs in df.iteritems():
-        print "Cleaning {}".format(col)
-        #srs[(~np.isfinite(srs)) & srs.notnull()] = -999
-
-        df[col] = srs.replace([np.inf, -np.inf, np.float64('inf'), np.float64('-inf')], np.nan).fillna(-999)
 
     print "Adding momentum features"
     df = with_momentum_features(df)
@@ -297,13 +278,6 @@ def with_added_features(df):
         name = f.__name__
         print "Calculating {}".format(name)
         df[name] = pd.Series(f(df), index=df.index).replace([np.inf, -np.inf], np.nan).fillna(-999)
-
-    #def with_new_features(df):
-    #    return df.join(map_functions(df, new_features))
-
-    #df = df
-    #df = with_momentum_features(df)
-    #df = with_new_features(df)
 
     return df
 
