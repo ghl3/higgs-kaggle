@@ -19,6 +19,8 @@ data/training.csv: data/training.zip
 data: data/test.csv data/training.csv
 	echo "Downloaded and unzipped all data"
 
+data/training_processed.csv: process_data.py data/training.csv data/test.csv
+	python process_data.py
 
 image:
 	docker build . -t higgs
