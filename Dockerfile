@@ -4,7 +4,7 @@ RUN    apt-get update \
     && apt-get install -y python2.7-dev python-matplotlib python-pip build-essential \
     && pip install --upgrade pip
 
-RUN pip install --upgrade matplotlib numpy jupyter scipy pandas sklearn xgboost seaborn
+RUN pip install --upgrade matplotlib numpy jupyter scipy pandas sklearn xgboost seaborn tensorflow
 
 EXPOSE 8888:8888
 
