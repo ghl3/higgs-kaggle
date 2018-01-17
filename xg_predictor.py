@@ -6,15 +6,16 @@ import xgboost as xgb
 
 class XGPredictor(object):
 
-    def __init__(self, num_round = 30, obj=None, feval=None, verbose_eval=True,
+    def __init__(self, num_round = 30, verbose_eval=True,
                  early_stopping_rounds=None,
                  **kwargs):
         self._num_round = num_round
         self._params = list(kwargs.items())
-        self._obj = obj
-        self._feval = feval
+        #self._obj = obj
+        #self._feval = feval
         self._verbose_eval = verbose_eval
         self._early_stopping_rounds = early_stopping_rounds
+
 
     @staticmethod
     def make_dmatrix(X, y, weight):
@@ -25,7 +26,8 @@ class XGPredictor(object):
 
 
     def fit(self, X, y, weight,
-            X_eval=None, y_eval=None, weight_eval=None):
+            X_eval=None, y_eval=None, weight_eval=None,
+            obj=None, feval=None):
 
         dtrain = XGPredictor.make_dmatrix(X, y, weight)
         evallist = [(dtrain, 'train')]
@@ -38,17 +40,19 @@ class XGPredictor(object):
                         dtrain,
                         self._num_round,
                         evallist,
-                        feval=self._feval,
-                        obj=self._obj,
+                        feval=feval,
+                        obj=obj,
                         early_stopping_rounds=self._early_stopping_rounds,
                         verbose_eval=self._verbose_eval)
 
         self._fitted_model = bst
         self._features = list(X.columns)
 
+
     def predict_raw(self, X):
         preds = self._fitted_model.predict(xgb.DMatrix(X[self._features]))
         return pd.Series(preds, index=X.index)
+
 
     def predict_proba(self, X):
         raws = self.predict_raw(X)
