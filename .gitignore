@@ -8,3 +8,5 @@
 models
 submissions
 *.png
+
+notebooks/tensorboard

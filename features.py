@@ -34,7 +34,7 @@ def _calculate_momenta(df, prefix):
         prefix+'py': py(pt, eta, phi),
         prefix+'pz': pz(pt, eta, phi),
         prefix+'p_tot': p_tot(pt, eta, phi)
-    })
+    }, index=df.index).fillna(-999)
 
 
 def total_maximum(xs):
