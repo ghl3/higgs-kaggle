@@ -12,4 +12,4 @@ VOLUME /home/ubuntu
 
 WORKDIR /home/ubuntu
 
-CMD jupyter notebook --ip 0.0.0.0 --no-browser --allow-root
+CMD sh -c 'jupyter notebook --ip 0.0.0.0 --no-browser --allow-root'
