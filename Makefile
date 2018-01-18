@@ -1,6 +1,6 @@
 
 
-all: data
+all: data/training_processed.csv
 
 data/test.zip:
 	echo "Please download the testing data from here: https://www.kaggle.com/c/higgs-boson/data to ./data/test.zip"

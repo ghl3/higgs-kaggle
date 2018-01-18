@@ -92,8 +92,9 @@ def with_momentum_features(df):
 # Start creating features
 #
 
-
+#
 # Eta Features
+#
 
 @require_jets(2)
 def jet_eta_plus(df):
@@ -111,8 +112,9 @@ def lep_tau_eta_plus(df):
 
 rapidity_features = [jet_eta_plus, lep_tau_eta_plus]
 
-
+#
 # Z Momentum Features
+#
 
 def lep_z_momentum(df):
     return df['PRI_lep_pz'] + df['PRI_tau_pz']
@@ -131,8 +133,10 @@ def jet_lep_diff_z_momentum(df):
 
 z_momentum_features = [lep_z_momentum, jet_z_momentum, jet_lep_sum_z_momentum, jet_lep_diff_z_momentum]
 
-
+#
 # Transverse Momenta Features
+#
+
 def max_jet_pt(df):
     return np.maximum(
         np.where(df['PRI_jet_leading_pt'] > 0, df['PRI_jet_leading_pt'], 0),
@@ -165,8 +169,9 @@ def sum_lep_pt(df):
 transverse_momentum_features = [max_jet_pt, min_jet_pt, max_lep_pt, min_lep_pt,
                                 max_pt, min_pt, sum_jet_pt, sum_lep_pt]
 
-
+#
 # Momentum Ratio Features
+#
 
 def frac_tau_pt(df):
     tau_pt = df['PRI_tau_pt']
@@ -192,10 +197,66 @@ def frac_lep_p(df):
     p_sum = (tau_p + lep_p)
     return np.where(p_sum != 0, lep_p / p_sum, -999)
 
-momentum_ratio_features = [frac_tau_pt, frac_lep_pt, frac_tau_p, frac_lep_p]
+
+@require_jets(2)
+def prijet_subjet_pt_ratio(df):
+    return df['PRI_jet_leading_pt'] / (df['PRI_jet_leading_pt'] + df['PRI_jet_subleading_pt'])
+
+@require_jets(2)
+def subjet_prijet_pt_ratio(df):
+    return df['PRI_jet_subleading_pt'] / (df['PRI_jet_leading_pt'] + df['PRI_jet_subleading_pt'])
+
+momentum_ratio_features = [frac_tau_pt, frac_lep_pt, frac_tau_p, frac_lep_p,
+                           prijet_subjet_pt_ratio, subjet_prijet_pt_ratio]
 
 
+
+#
+# Mass / Energy Features
+#
+
+
+def transverse_mass_lep(row):
+    lep_pt = np.sqrt(row['PRI_lep_px']*row['PRI_lep_px'] + row['PRI_lep_py']*row['PRI_lep_py'])
+    return np.sqrt(2*lep_pt*row['PRI_met'] * (1 - (np.cos(row['PRI_met_phi'] - row['PRI_lep_phi']))))
+
+def transverse_mass_tau(row):
+    tau_pt = np.sqrt(row['PRI_tau_px']*row['PRI_tau_px'] + row['PRI_tau_py']*row['PRI_tau_py'])
+    return np.sqrt(2*tau_pt*row['PRI_met'] * (1 - np.cos(row['PRI_met_phi'] - row['PRI_tau_phi'])))
+
+def transverse_mass_jet_leading(row):
+    lep_pt = np.sqrt(row['PRI_jet_leading_px']*row['PRI_jet_leading_px'] + row['PRI_jet_leading_py']*row['PRI_jet_leading_py'])
+    return np.sqrt(2*lep_pt*row['PRI_met'] * (1 - (np.cos(row['PRI_met_phi'] - row['PRI_jet_leading_phi']))))
+
+def transverse_mass_jet_subleading(row):
+    lep_pt = np.sqrt(row['PRI_jet_subleading_px']*row['PRI_jet_subleading_px'] + row['PRI_jet_subleading_py']*row['PRI_jet_subleading_py'])
+    return np.sqrt(2*lep_pt*row['PRI_met'] * (1 - (np.cos(row['PRI_met_phi'] - row['PRI_jet_subleading_phi']))))
+
+
+tau_mass = 1.7
+
+def tau_fourenergy(row):
+    tau_2 = row['PRI_tau_px']*row['PRI_tau_px'] + row['PRI_tau_py']*row['PRI_tau_py'] + row['PRI_tau_pz']*row['PRI_tau_pz']
+    return np.sqrt(tau_mass*tau_mass + tau_2)
+
+def lep_fourenergy(row):
+    lep_2 = row['PRI_lep_px']*row['PRI_lep_px'] + row['PRI_lep_py']*row['PRI_lep_py'] + row['PRI_lep_pz']*row['PRI_lep_pz']
+    return np.sqrt(tau_mass*tau_mass + lep_2)
+
+
+def lep_mass(df):
+    delta_cosh_eta = np.cosh(df['PRI_lep_eta'] - df['PRI_tau_eta'])
+    delta_cos_phi = np.cos(df['PRI_lep_phi'] - df['PRI_tau_phi'])
+    return 2*df['PRI_lep_pt']*df['PRI_tau_pt']*(delta_cosh_eta - delta_cos_phi)
+
+
+
+mass_energy_features = [transverse_mass_lep, transverse_mass_tau, transverse_mass_jet_leading,
+                        transverse_mass_jet_subleading, tau_fourenergy, lep_fourenergy, lep_mass]
+
+#
 # MET Features
+#
 
 def ht(df):
     return sum_jet_pt(df) + sum_lep_pt(df)
@@ -249,13 +310,34 @@ def met_pt_total_ratio(df):
 met_features = [ht, ht_met, tau_met_cos_phi, lep_met_cos_phi, jet_leading_met_cos_phi, jet_subleading_met_cos_phi,
                 min_met_cos_phi, max_met_cos_phi, met_sig, sumet_sum_pt_ratio, met_pt_total_ratio]
 
-
+#
 # Jet Features
+#
+
 @require_jets(2)
 def jet_delta_cos_phi(df):
     return np.cos(df['PRI_jet_leading_phi'] - df['PRI_jet_subleading_phi'])
 
-jet_features = [jet_delta_cos_phi]
+def prijet_tau_delta_cos_phi(row):
+    return np.cos(df['PRI_jet_leading_phi'] - df['PRI_tau_phi'])
+
+def prijet_lep_delta_cos_phi(df):
+    return np.cos(df['PRI_jet_leading_phi'] - df['PRI_lep_phi'])
+
+def subjet_lep_delta_cos_phi(df):
+    return np.cos(df['PRI_jet_subleading_phi'] - df['PRI_tau_phi'])
+
+def subjet_lep_delta_cos_phi(df):
+    return np.cos(df['PRI_jet_subleading_phi'] - df['PRI_lep_phi'])
+
+def lep_tau_delta_cos_phi(df):
+    return np.cos(df['PRI_lep_phi'] - df['PRI_tau_phi'])
+
+
+
+jet_features = [jet_delta_cos_phi, prijet_tau_delta_cos_phi, prijet_lep_delta_cos_phi, subjet_lep_delta_cos_phi,
+                subjet_lep_delta_cos_phi, lep_tau_delta_cos_phi]
+
 
 
 # Adding features to a DF
@@ -273,6 +355,7 @@ def with_added_features(df):
     new_features.extend(transverse_momentum_features)
     new_features.extend(met_features)
     new_features.extend(momentum_ratio_features)
+    new_features.extend(mass_energy_features)
 
     for f in new_features:
         name = f.__name__
