@@ -8,6 +8,9 @@ import numpy as np
 
 from sklearn.metrics import auc
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 def ams2(s, b):
     br = 10
@@ -79,3 +82,75 @@ def create_result_df(scores, labels, weights):
         res.append(r)
 
     return df, pd.DataFrame(res).set_index('threshold', drop=False)
+
+
+# Helper Function for Plotting
+
+def plot_results(df_scores, df_summary):
+
+    fig = plt.figure(figsize=(12,12))
+
+    plt.subplot(3, 2, 1)
+    for l in ['b', 's']:
+        sns.distplot(
+            df_scores[df_scores.label == l].score,
+            label=l,
+            ax=plt.gca(),
+            hist=False,
+            rug=False)
+    plt.legend(loc='best')
+    plt.title("Individual distributions of score within each class")
+
+    plt.subplot(3, 2, 2)
+    df_summary.b.plot(label='b')
+    df_summary.s.plot(label='s')
+    plt.legend(loc='best')
+    plt.title("s and b as a function of threshold")
+    plt.gca().set_yscale("log", nonposy='clip')
+
+    plt.subplot(3, 2, 3)
+    mn, mx = df_summary.threshold.min(), df_summary.threshold.max()
+    plt.hist(df_scores[df_scores.label=='b'].score,
+             weights=df_scores[df_scores.label=='b'].weight,
+             bins=np.arange(mn, mx, (mx-mn) / 100),
+             label='b',
+             stacked=True)
+    plt.hist(df_scores[df_scores.label=='s'].score,
+             weights=df_scores[df_scores.label=='s'].weight,
+             bins=np.arange(mn, mx, (mx-mn) / 100),
+             label='s',
+             stacked=True)
+    plt.gca().set_yscale("log", nonposy='clip')
+    plt.legend(loc='best')
+    plt.title("Weighted histograms of score distributions (stacked)")
+    plt.xlabel('score')
+
+    plt.subplot(3, 2, 4)
+    df_summary.ams2.plot(label='ams2 (max={:.2f})'.format(df_summary.ams2.max()))
+    df_summary.ams3.plot(label='ams3 (max={:.2f})'.format(df_summary.ams3.max()))
+    plt.xlabel('Threshold')
+    plt.ylabel('AMS Metric')
+    plt.legend(loc='best')
+    plt.title("Metrics as a function of threshold")
+
+    plt.subplot(3, 2, 5)
+    x = df_summary['false_positive_rate']
+    y = df_summary['true_positive_rate']
+    roc_auc = auc(x, y, reorder=True)
+    plt.plot(x, y, label='ROC Curve     (AUC={:.3f})'.format(roc_auc))
+    x = df_summary['false_positive_rate_wgt']
+    y = df_summary['true_positive_rate_wgt']
+    roc_auc = auc(x, y, reorder=True)
+    plt.plot(x, y, label='ROC Curve WGT (AUC={:.3f})'.format(roc_auc))
+    plt.xlabel('False Positive Rate')
+    plt.ylabel("True Positive Rate") 
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.legend(loc='best')
+
+    plt.subplot(3, 2, 6)
+    df_summary.accuracy.plot(label='Accuracy') # (max={:.3f})'.format(df_summary.accuracy.max()))
+    df_summary.accuracy_wgt.plot(label='Accuracy WGT') # (max={:.3f})'.format(df_summary.accuracy_wgt.max()))
+    plt.legend(loc='best')
+
+    plt.tight_layout()
