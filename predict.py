@@ -1,95 +1,64 @@
 #!/usr/bin/env python
 
-from utils import load_training, load_testing, get_model
-from utils import get_features_and_targets
-from utils import target_to_label
+from __future__ import division
 
-import bamboo.modeling
+import numpy as np
+import pandas as pd
+import xgboost as xgb
 
-from features import add_features
+import xg_predictor
 
-import pandas
-import argparse
-import time
-import os
-
-from sklearn.externals import joblib
-
-
-def train(training_data, model):
-    training_features, training_targets = get_features_and_targets(training_data)
-
-    fitted = model.fit(training_features, training_targets)
-    return fitted
-
-
-def predict(classifier, testing_data):
-
-    features = testing_data
-    print features.head().T
-    prediction = bamboo.modeling.get_prediction(classifier,
-                                                features)
-    return prediction
-
-
-def output_predictions(predictions, threshold, filename):
-
-    output = pandas.DataFrame({'EventId' : predictions.index,
-                               'Score' : predictions.predict_proba_1})
-    output['Class'] = output['Score'].map(lambda x:
-                                          's' if x > threshold else 'b')
-    output = output.sort('Score', ascending=False)
-    output = output.reset_index(drop=True)
-    output['RankOrder'] = output.index
-    output['RankOrder'] = output['RankOrder'].map(lambda x: x+1)
-
-    output[['EventId', 'RankOrder', 'Class']].to_csv(filename, index=False)
+from utils import *
 
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Predict the testing set')
-    parser.add_argument('--model_type', default='RandomForest')
-    parser.add_argument('--test', action='store_true')
-    args = parser.parse_args()
+    training = pd.read_csv('./data/training_processed.csv').set_index('EventId')
+    evaluation = pd.read_csv('./data/evaluation_processed.csv').set_index('EventId')
+    holdout = pd.read_csv('./data/holdout_processed.csv').set_index('EventId')
 
-    if args.test:
-        suffix = 'test'
-    else:
-        suffix = time.strftime("%d_%m_%Y")
+    for df in training, evaluation, holdout:
+        df['target'] = df.Label.map(lambda l: 1.0 if l=='s' else 0.0)
 
-    model = get_model(args.model_type, args.test)
-    print "Loaded Model: %s" % model
+    feature_cols = [col for col in training if col not in {'Weight', 'Label', 'target'}]
 
-    print "Loading Training Data"
-    training = load_training()
+    gbt = xg_predictor.XGPredictor(
+        num_round=50,
+        early_stopping_rounds=10,
+        **{
+            'max_depth': 4,
+            'eta': .4,
+            'silent': 1,
+            'objective': 'binary:logistic',
+            'eval_metric': 'auc',
+            'gamma': 10.0,
+            'min_child_weight': 10,
+            'lambda': 1.0,
+            'scale_pos_weight': 1
+        })
 
-    if not args.test:
-        print "Adding new features"
-        training = add_features(training)
+    gbt.fit(training[feature_cols], training.target, None,
+            evaluation[feature_cols], evaluation.target, None)
 
-    print "Training Model"
-    classifier = train(training, model)
+    # Score on the training holdout to get the optimal threshold
+    holdout_predictions = gbt.predict_raw(holdout)
+    holdout_score_data, holdout_score_summary = create_result_df(holdout_predictions, holdout.Label, holdout.Weight)
+    threshold = holdout_score_summary.ams3.idxmax()
 
-    print "Saving Classifier"
-    output_dir = 'models/classifier_%s' % suffix
-    try:
-        os.mkdir(output_dir)
-    except:
-        pass
-    joblib.dump(classifier, '%s/%s.pkl' % (output_dir, classifier.__class__.__name__))
+    # Apply the score to the test set and use the index as a cutoff
 
-    print "Loading testing set"
-    testing = load_testing()
+    test_data =  pd.read_csv('./data/test_processed.csv').set_index('EventId')
 
-    if not args.test:
-        print "Adding new features to testing set"
-        testing = add_features(testing)
+    test_predictions = gbt.predict_raw(holdout)
 
-    print "Making predictions on testing set"
-    predictions = predict(classifier, testing)
-    output_predictions(predictions, threshold=0.7,
-                       filename='prediction_%s.csv' % suffix)
+    result_df = pd.DataFrame({
+        'Score': test_predictions}).sort_values(by='Score', ascending=False).reset_index()
+    result_df['Class'] = result_df['Score'].map(lambda score: 's' if score >= threshold else 'b')
+    result_df['RankOrder'] = result_df.index
+
+    print result_df.head()
+
+    result_df[['EventId', 'RankOrder', 'Class']].to_csv('predictions/predictions.csv', index=False)
 
 
 if __name__=='__main__':

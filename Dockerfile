@@ -12,4 +12,6 @@ VOLUME /home/ubuntu
 
 WORKDIR /home/ubuntu
 
-CMD sh -c 'jupyter notebook --ip 0.0.0.0 --no-browser --allow-root'
+COPY *.py Makefile ./
+
+CMD make

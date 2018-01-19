@@ -1,6 +1,6 @@
 
 
-all: data/training_processed.csv
+all: predictions/predictions.csv
 
 data/test.zip:
 	echo "Please download the testing data from here: https://www.kaggle.com/c/higgs-boson/data to ./data/test.zip"
@@ -22,10 +22,5 @@ data: data/test.csv data/training.csv
 data/training_processed.csv: process_data.py features.py data/training.csv data/test.csv
 	python process_data.py
 
-image:
-	docker build . -t higgs
-
-
-notebook-server: image
-#	docker run -t -i -p 8888:8888 -v $(PWD)/data:/home/ubuntu/data -v $(PWD)/notebooks:/home/ubuntu/notebooks higgs:latest
-	docker run -t -i -p 8888:8888 -v $(PWD):/home/ubuntu  higgs:latest
+predictions/predictions.csv: predict.py data/training_processed.csv
+	python predict.py
